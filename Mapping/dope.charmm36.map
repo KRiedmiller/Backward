@@ -1,35 +1,24 @@
-; latest revision TAW 20190407
+; latest revision TAW 20190405
 [ molecule ]
-DOPC
+DOPE
 
 [ martini ]
-NC3 PO4 GL1 GL2 C1A D2A C3A C4A C1B D2B C3B C4B 
+NH3 PO4 GL1 GL2 C1A D2A C3A C4A C1B D2B C3B C4B 
 
 [ mapping ]
 charmm27 charmm36 slipids amber
 
 [ atoms ]
-; Terminal head group (choline)
-    1     N   NC3 
-    2   C12   NC3 NC3 NC3 PO4 
-    3   C13    
-    4   C14    
-    5   C15   
-    6  H12A   NC3 NC3 NC3 PO4
-    7  H12B   
-    8  H13A   NC3 
-    9  H13B    
-   10  H13C    
-   11  H14A    
-   12  H14B    
-   13  H14C    
-   14  H15A   
-   15  H15B   
-   16  H15C   
-   17   C11   NC3 PO4  
+    1     N   NH3
+    2   HN1   
+    3   HN2   
+    4   HN3   
+    6   C12   NH3 NH3 NH3 PO4
+    7  H12A   
+    9  H12B   
+   17   C11   NH3 PO4
    18  H11A   
    19  H11B   
-; Phosphate group
    20     P   PO4
    21   O13   
    22   O14   
@@ -173,37 +162,29 @@ O32 C31 O31 C32
 H7R C27 C26 C28
 H7S C27 C26 C28
 C28 C27 C26 H7R
-H8R C27 C26 H7R
-H8S C27 C26 H7R
 [ trans ]
 C29 C28 C27 C26
 C210 C29 C28 C27
 H101 C210 C29 C28
-H10R C210 C29 C28  ; Naming inconsistency - bug?
 [ out ]
 C211 C210 H101 C29
 H11R C210 H101 C29
 H11S C210 H101 C29
 H91 C29 C210 C28
-H9R C29 C210 C28  ; Naming inconsistency - bug?
 
 [ out ]
 H7X C37 C36 C38
 H7Y C37 C36 C38
 C38 C37 C36 H7X
-H8X C37 C36 H7X
-H8Y C37 C36 H7X
 [ trans ]
 C39 C38 C37 C36
 C310 C39 C38 C37
 H102 C310 C39 C38
-H10X C310 C39 C38 ; Naming inconsistency - bug?
 [ out ]
 C311 C310 H102 C39
 H11X C310 H102 C39
-H11Y C310 H102 C39 ; Naming inconsistency - bug?
+H11Y C310 H102 C39
 H92 C39 C310 C38
-H9X C39 C310 C38
 
 ; extend the tails
 [ trans ]
@@ -223,15 +204,3 @@ H18X C317 C316 C315
 H18Y C317 C316 C315
 H18Z C317 C316 C315
 
-;;;making a choline group
-[out]
-C14 N C13 C12
-H14A N C13 C12
-H14B N C13 C12
-H14C N C13 C12
-
-[ chiral ]
-C15 N C12 C13 C14
-H15A N C12 C13 C14
-H15B N C12 C13 C14
-H15C N C12 C13 C14

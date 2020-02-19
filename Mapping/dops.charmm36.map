@@ -1,34 +1,27 @@
-; latest revision TAW 20190407
+; created TAW 20191017 (merged DOPC WITH POPS)
 [ molecule ]
-DOPC
+DOPS
 
 [ martini ]
-NC3 PO4 GL1 GL2 C1A D2A C3A C4A C1B D2B C3B C4B 
+CN0 PO4 GL1 GL2 C1A D2A C3A C4A C1B D2B C3B C4B 
 
 [ mapping ]
 charmm27 charmm36 slipids amber
 
 [ atoms ]
 ; Terminal head group (choline)
-    1     N   NC3 
-    2   C12   NC3 NC3 NC3 PO4 
-    3   C13    
-    4   C14    
-    5   C15   
-    6  H12A   NC3 NC3 NC3 PO4
-    7  H12B   
-    8  H13A   NC3 
-    9  H13B    
-   10  H13C    
-   11  H14A    
-   12  H14B    
-   13  H14C    
-   14  H15A   
-   15  H15B   
-   16  H15C   
-   17   C11   NC3 PO4  
-   18  H11A   
-   19  H11B   
+    1     N   CNO
+    2   HN1   CNO
+    3   HN2   CNO
+    4   HN3   CNO
+    5   C12   CNO CNO CNO PO4
+    6  H12A   CNO CNO CNO PO4
+    7   C13   CNO 
+    8  O13A   CNO
+    9  O13B   CNO
+   10   C11   PO4 CNO
+   11  H11A   PO4 CNO
+   12  H11B   PO4 CNO
 ; Phosphate group
    20     P   PO4
    21   O13   

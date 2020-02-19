@@ -1,8 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+
+#from __future__ import print_function
 
 ## Mapping from atomistic to coarse grained and vice versa
 
-version="devel_130709.21_TAW"
+version="190507.10_TAW"
 authors=["Tsjerk A. Wassenaar"]
 
 ##
@@ -14,7 +17,7 @@ import Mapping
 
 # Some definitions
 
-AminoAcids    = "ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR ACE NH2 LYQ GLQ".split() #EDIT
+AminoAcids    = "ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR ACE NH2".split()
 protein_stuff = list(AminoAcids)
 
 NucleicAcids  = "C G A T U DC DG DA DT DCYT DGUA DADE DTHY CYT GUA ADE THY URA".split()
@@ -39,9 +42,20 @@ levels = {
     "gromos45a3":  1,
     "gromos53a6":  1,
     "gromos54a7":  1,
+    "alex":        1, # Gromos with adapted lipids
     "charmm":      0,
     "charmm27":    0,
     "charmm36":    0,
+    "amber":       0,
+    "amber94":     0,
+    "amber96":     0,
+    "amber99":     0,
+    "amber99sb":   0,
+    "amber03":     0,
+    "amberGS":     0,
+    "slipids":     0, # Amber with adapted lipids
+    "opls":        0,
+    "opls-aa":     0,
     }
 
 
@@ -49,32 +63,37 @@ levels = {
 # multiple molecules to a single bead. It seems best to 
 # map idealized configurations onto each bead.
 fourWaters = [
-	("OW",  -0.08,-0.08,-0.08),
-	("HW1", -0.08,-0.01,-0.01),
-        ("HW2", -0.01,-0.01,-0.08),
+    ("OW",  -0.08,-0.08,-0.08),
+    ("HW1", -0.08,-0.01,-0.01),
+    ("HW2", -0.01,-0.01,-0.08),
 
-	("OW",  -0.08, 0.08, 0.08),
-	("HW1", -0.01, 0.08, 0.01),
-        ("HW2", -0.01, 0.01, 0.08),
+    ("OW",  -0.08, 0.08, 0.08),
+    ("HW1", -0.01, 0.08, 0.01),
+    ("HW2", -0.01, 0.01, 0.08),
 
-	("OW",   0.08, 0.08,-0.08),
-	("HW1",  0.08, 0.01,-0.01),
-        ("HW2",  0.14, 0.14,-0.14),
+    ("OW",   0.08, 0.08,-0.08),
+    ("HW1",  0.08, 0.01,-0.01),
+    ("HW2",  0.14, 0.14,-0.14),
 
-	("OW",   0.08,-0.08, 0.08),
-	("HW1",  0.01,-0.08, 0.01),
-        ("HW2",  0.14,-0.14, 0.14),
+    ("OW",   0.08,-0.08, 0.08),
+    ("HW1",  0.01,-0.08, 0.01),
+    ("HW2",  0.14,-0.14, 0.14),
 ]
 
 solvent = {
-    "SOL": [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0)],
-    "W":   fourWaters,
-    "PW":  fourWaters,
-    "ION": [("ION",0.00,0.00,0.00)] + fourWaters,
-    "CL":  [("CL",0.00,0.00,0.00)] + fourWaters,
-    "CL-": [("CL",0.00,0.00,0.00)] + fourWaters,
-    "NA":  [("NA",0.00,0.00,0.00)] + fourWaters,
-    "NA+": [("NA",0.00,0.00,0.00)] + fourWaters,
+    "SOL":   [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0)],
+    "TIP":   [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0)],
+    "TIP3":  [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0)],
+    "TIP3P": [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0)],
+    "TIP4":  [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0),("MW",0,0,0.1)],
+    "TIP4P": [("OW", 0,0,0),("HW1", 0.1,0,0),("HW2", 0,0.1,0),("MW",0,0,0.1)],
+    "W":     fourWaters,
+    "PW":    fourWaters,
+    "ION":   [("ION",0.00,0.00,0.00)] + fourWaters,
+    "CL":    [("CL",0.00,0.00,0.00)] + fourWaters,
+    "CL-":   [("CL",0.00,0.00,0.00)] + fourWaters,
+    "NA":    [("NA",0.00,0.00,0.00)] + fourWaters,
+    "NA+":   [("NA",0.00,0.00,0.00)] + fourWaters,
 }
 
 solvent_stuff = solvent.keys()
@@ -101,6 +120,92 @@ mapnum = {"SOL": 1, "W": 4, "PW": 4, "ION": 5, "CL": 5, "CL-": 5, "NA": 5, "NA+"
 
 def kick(x,u):
     return x+(random.random()-0.5)*u
+
+
+def write_topology(filename, top, solvent, ions):
+    """Write the topology with solvent/ions put at the end"""
+    with open(filename, "w") as po:
+        mol = False
+
+        # Write everything up to the [ molecules ] directive
+        # After that, write only lines which are not solvent or ions
+        for i in open(top):
+            s = i.strip()
+            if "molecules" in i:
+                # Make sure we are not dealing with a comment
+                if s.startswith('[') and s[1:].strip().startswith("molecules"):
+                    mol = True
+        
+            if mol:
+                # Skip empty lines and comments
+                # Skip the lines listing solvent and ion molecules
+                if (not s) or (s[0] != ";" and i.split()[0] in solvent_stuff):
+                    continue
+        
+            po.write(i)
+    
+        # Add lines for solvent and ions
+        sol  = [(i[1],i[2]) for i in solvent]
+        sol  = [a[0] for a,b in itertools.groupby(sol)]
+        po.writelines(["%s %5d\n"%(a,len(list(b))) for a,b in itertools.groupby(sol)])
+
+        ions = [(i[0],i[2]) for i in ions]
+        ions = [a[0] for a,b in itertools.groupby(ions)]
+        po.writelines(["%s %5d\n"%(a.replace("+","").replace("-",""),len(list(b))) 
+                       for a,b in itertools.groupby(ions)])
+
+    return
+
+
+def write_ndx(filename, atoms, protein, solvent):
+    # Index groups
+    ndx_protein  = []
+    ndx_membrane = []
+    ndx_solvent  = []
+
+    for i,j in zip(range(1,1+len(atoms)),atoms):
+        if j[1] in protein:
+            ndx_protein.append(i)
+        elif j[1] in solvent:
+            ndx_solvent.append(i)
+        else:
+            ndx_membrane.append(i)
+
+    with open(filename, "w") as ndx:
+        ndx.write("[ Protein ]\n"+"\n".join([str(i) for i in ndx_protein])+"\n")
+        ndx.write("[ Membrane ]\n"+"\n".join([str(i) for i in ndx_membrane])+"\n")
+        ndx.write("[ Solvent ]\n"+"\n".join([str(i) for i in ndx_solvent])+"\n")
+    
+    return
+
+
+def write_gro(filename, title, atoms, box, size):
+    if filename:
+        dev = open(filename,"w")
+    else:
+        dev = sys.stdout
+    dev.write(title)
+
+    # Atom count
+    dev.write("%5d\n"%len(atoms))
+
+
+    # Atoms
+    idx = 1
+    for atom in atoms:
+        # Regular atom
+        nam,res,id,chn,x,y,z = atom
+        if False and res not in solvent_stuff:
+            x,y,z = kick(x,size),kick(y,size),kick(z,size)
+        dev.write("%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n"%(id%1e5,res,nam,idx%1e5,x,y,z))
+        idx += 1
+
+    # Box
+    dev.write(box + "\n")
+
+    # Close if we were writing to file
+    if filename:
+        dev.close()
 
 
 ######################################
@@ -290,7 +395,11 @@ def groAtom(a):
     #012345678901234567890123456789012345678901234567890
     #    1PRN      N    1   4.168  11.132   5.291
     ## ===>   atom name,   res name,     res id, chain,       x,          y,          z       
-    return (str(a[10:15]), str(a[5:10]),   int(a[:5]), " ", float(a[20:28]),float(a[28:36]),float(a[36:44]))
+    prec = len(a[20:].split('.', 2)[1]) + 1
+    x = 20 + prec
+    y = x + prec
+    z = y + prec
+    return (str(a[10:15]), str(a[5:10]),   int(a[:5]), " ", float(a[20:x]),float(a[x:y]),float(a[y:z]))
 
 
 def get_calpha_xyz(r):
@@ -346,13 +455,13 @@ class Structure:
         # convert to box coordinates and truncate. Convert back to Cartesian
         # coordinates and add to the coordinates of the first atom.
         A, B = None, None
-        if self.box:
-            A = zip(*self.box)
-        try:
-            B = m_inv(A)
-            self.residues = [ unbreak(i,A,B) for i in self.residues ]
-        except ZeroDivisionError:
-            print "Non-invertable box. Not able to unbreak molecules..."
+        if self.box and not options["-nopbc"]:
+            A = list(zip(*self.box))
+            try:
+                B = m_inv(A)            
+                self.residues = [ unbreak(i,A,B) for i in self.residues ]
+            except ZeroDivisionError:
+                print("Non-invertable box. Not able to unbreak molecules...")
 
 
         # Check for protein chains and breaks
@@ -377,7 +486,7 @@ class Structure:
 
 
         # Maybe we just added an empty list to the backbone, like if the last residue is a C-terminal
-	if backbone and not backbone[-1]:
+        if backbone and not backbone[-1]:
             backbone.pop()
 
 
@@ -569,6 +678,10 @@ class Option:
         if self.func == bool:
             return self.value != None
         return bool(self.value)
+    def __bool__(self):
+        if self.func == bool:
+            return self.value != None
+        return bool(self.value)
     def __str__(self):
         return self.value and str(self.value) or ""
     def setvalue(self,v):
@@ -581,7 +694,18 @@ class Option:
 desc = ""
 
 # Option list
-options = [
+options = []
+
+def workflow(args : list):
+    """Main workflow of backward.py
+    
+    Parameters
+    ----------
+    args : List(Str)
+        Commandline arguments
+    """    
+    global options
+    options = [
 #   option           type         number     default   description
     ("-f",        Option(str,           1,         None, "Input  GRO/PDB structure")),
     ("-o",        Option(str,           1,         None, "Output GRO/PDB structure")),
@@ -598,344 +722,289 @@ options = [
     ("-strict",   Option(bool,          0,         None, "Use strict format for PDB files")),
     ("-nt",       Option(bool,          0,         None, "Use neutral termini for proteins")),
     ("-sol",      Option(bool,          0,         None, "Write water")),
+    ("-solname",  Option(str,           1,        "SOL", "Residue name for solvent molecules")),
     ("-kick",     Option(float,         1,            0, "Random kick added to output atom positions")),
+    ("-nopbc",    Option(bool,          0,         None, "Don't try to unbreak residues (like when having large residues in a small box)")),
+    ("-mapdir",   Option(str,           1,         None, "Directory where to look for the mapping files")),
     ]
 
-
-# Parsing arguments
-args = sys.argv[1:]
-if '-h' in args or '--help' in args:
-    print "\n",__file__
-    print desc or "\nSomeone ought to write a description for this script...\n"
-    for thing in options:
-        print type(thing) != str and "%10s  %s"%(thing[0],thing[1].description) or thing
-    print
-    sys.exit()
+    if '-h' in args or '--help' in args:
+        print("\n",__file__)
+        print(desc or "\nSomeone ought to write a description for this script...\n")
+        for thing in options:
+            print(type(thing) != str and "%10s  %s"%(thing[0],thing[1].description) or thing)
+        print()
+        sys.exit()
 
 
-# Convert the option list to a dictionary, discarding all comments
-options = dict([i for i in options if not type(i) == str])
+    # Convert the option list to a dictionary, discarding all comments
+    options = dict([i for i in options if not type(i) == str])
 
 
-# Process the command line - list the options that were given
-opts = [] 
-while args:
-    opts.append(args.pop(0))
-    options[opts[-1]].setvalue([args.pop(0) for i in range(options[opts[-1]].num)])
+    # Process the command line - list the options that were given
+    opts = [] 
+    while args:
+        opts.append(args.pop(0))
+        options[opts[-1]].setvalue([args.pop(0) for i in range(options[opts[-1]].num)])
 
 
-## DONE PARSING ARGUMENTS ##
-    
+    ## DONE PARSING ARGUMENTS ##
+        
 
-################################################################################
+    ################################################################################
 
-## MAPPING ##
-
-
-##### A. If a target topology was provided, read it in
+    ## MAPPING ##
 
 
-top = options["-p"] and Topology(options["-p"].value,out=options["-pp"].value)
+    ##### A. If a target topology was provided, read it in
 
 
-##### B. Read in the structure
+    top = options["-p"] and Topology(options["-p"].value,out=options["-pp"].value)
 
 
-struc = Structure(options["-f"].value,strict=options["-strict"].value)
+    ##### B. Read in the structure
 
 
-##### C. Set the mapping dictionary
+    struc = Structure(options["-f"].value,strict=options["-strict"].value)
 
 
-# Convert force field tags to lower case 
-# Default is backmapping from MARTINI to GROMOS53A6
-# If to_ff == martini, default from_ff = gromos
-to_ff = options["-to"] and options["-to"].value.lower() or "gromos"
-if to_ff == "martini" and not options["-from"]:
-    from_ff = "gromos"
-else:
-    from_ff     = options["-from"] and options["-from"].value.lower() or "martini"
-mapping     = Mapping.get(source=from_ff,target=to_ff)
-backmapping = levels[from_ff] > levels[to_ff]
-reslist     = mapping.keys()
+    ##### C. Set the mapping dictionary
 
 
-##### D. Iterate over atoms to write out, based on residue names
-
-
-# Copy the residue list from the target topology
-# This gives a list we can pop from, while keeping
-# the original.
-# The solvent residues are skipped.
-topresidues = None
-if top:
-    topresidues = [i for i in top.residues]
-    if options["-atomlist"]:
-        atm    = open(options["-atomlist"].value,"w")
-        topatm = [j for i in topresidues for j in i]
-        atm.writelines("".join(["%6d %5s %5s\n"%(u,v[0],v[1]) for u,v in zip(range(1,len(topatm)+1),topatm)]))
-
-
-# Iterate over residues
-# If we are backmapping, we store the BB bead
-# positions, to generate a spline, which we use
-# afterwards to place the backbone atoms.
-# To set the positions, we use some bookkeeping
-# tricks for the atoms to place on, or relative
-# to, the spline.
-# The backbone list will end up being equal in 
-# length to the number of (amino acid) residues.
-# It is processed afterwards to be three times
-# the length. Indices are used to indicate which
-# entry from the resulting interpolated spline 
-# list need to be taken for the position, and an
-# offset (tuple) is added to control the placement
-# of hydrogens and oxygens to N/C.
-counter  =  0
-out      = []
-cg       = []
-raw      = []
-sol      = []
-ions     = []
-for residue,bb,nterm,cterm in zip(struc.residues,struc.backbone,struc.nterm,struc.cterm):
-
-
-    counter += 1
-
-
-    # Ignore solvent molecules from the topology
-    while topresidues and topresidues[0][0][1] in solvent_stuff:
-        topresidues.pop(0)
-
-
-    # Unpack first atom
-    first, resn, resi, chain, x, y, z = residue[0]
-
-
-    # Extract residue name and atom list
-    resn  = resn.strip()
-    atoms = [i[0].strip() for i in residue]
-
-
-    # Just read one residue from the CG structure
-    # If we have a topology, we need to check whether
-    # the residue we just read matches the next in the 
-    # topology. Several cases are possible:
-    #
-    #   - The residuename is equal in both cases:
-    #     This is too easy! Just proceed and thank your deity.
-    #
-    #   - The residues do not match, but the CG residuename 
-    #     matches the AA moleculetype name:
-    #     This may happen with lipids, if the atomistic structure
-    #     is split in residues like in the De Vries model.
-    #     In this case, all residues corresponding to the molecule
-    #     need to be read from the topology, based on the chain 
-    #     identifier.
-    #
-    #   - The residuename does not match, but the residue does:
-    #     The residues should match, or at least the first 
-    #     characters.      
-    #
-    #   - The residue does not match with either the residue or 
-    #     moleculetype from the atomistic topology:
-    #     If the residue is solvent, then we leave the topology
-    #     untouched, and the atoms are generated based on the 
-    #     mapping.
-
-
-    # Check for solvent
-    if resn in solvent.keys():
-        cx, cy, cz = residue[0][4:7]
-        for atom, x, y, z in solvent[resn]:
-            # Should add random rotation
-            if atom in ion_stuff:
-                atom = atoms[0]
-                ions.append((atom,resn,counter,chain,cx+x,cy+y,cz+z)) 
-                # They are added at the end, which is safe, as the
-                # ion position is taken from the CG bead position
-                # anyway.
-            else:
-                # If we do not want solvent written then this is 
-                # a good time to break: the first atom of a stretch
-                # of solvent. Note that this ensures that we write 
-                # ions if we have those.
-                if not options["-sol"]:
-                    break
-                resn = "SOL"
-                # Increase the counter if we have an oxygen.
-                # A little hack to keep track of water molecules
-                if atom[0] == "O":
-                    counter += 1
-                sol.append((atom,resn,counter,chain,cx+x,cy+y,cz+z)) 
-        # Go to next residue
-        continue
-
-
-    # Read a residue from the target topology if we have one
-    # Read several if the mapping so requires
-    # Make an atom list from the residues read
-    if topresidues:
-        # Check whether the CG residue corresponds to the next AA residue
-        # or to the next moleculetype 
-        topres = topresidues.pop(0)
-        if resn != topres[0][1] and resn == topres[0][7]:
-            # Add residues based on chain id
-            while topresidues and topresidues[0][0][3] == topres[0][3]:
-                topres.extend(topresidues.pop(0))
-        topres = [i for j in range(mapnum.get(resn,1)) for i in topres]
-        # Set the residue name to the moleculetype name
-        topres[0][3] = topres[0][7]
-        target = zip(*topres)[0]
-        # Check for duplicate atom names
-        if not len(target) == len(set(target)):
-            print "The target list for residue %s contains duplicate names. Relying on mapping file."%resn
-            target = None
+    # Convert force field tags to lower case 
+    # Default is backmapping from MARTINI to GROMOS53A6
+    # If to_ff == martini, default from_ff = gromos
+    to_ff = options["-to"] and options["-to"].value.lower() or "gromos"
+    if to_ff == "martini" and not options["-from"]:
+        from_ff = "gromos"
     else:
-        target = None
+        from_ff     = options["-from"] and options["-from"].value.lower() or "martini"
+    mapping     = Mapping.Mapping(options["-mapdir"].value).get(source=from_ff,target=to_ff)
+    backmapping = levels[from_ff] > levels[to_ff]
+    reslist     = mapping.keys()
 
 
-    # Except for solvent, the residue name from a topology 
-    # takes precedence over the one from the structure.
-    if target and topres[0][1] in mapping.keys():
-        resn = topres[0][1]
-
-    
-    # Check if the residue is in the list
-    # or whether we have an ambiguity.
-    # In that case the first part of the 
-    # residue proper is equal to what we have
-    # and the atom lists should be equal
-    if not resn in reslist:
-        p = set(atoms)
-        for i in reslist:
-            if i.startswith(resn):
-                if p == set([k for j in mapping[i].map.values() for k in j]):
-                    resn = i
-                    break
+    ##### D. Iterate over atoms to write out, based on residue names
 
 
-    if not resn in mapping.keys():
-        # If the residue is still not in the mapping list
-        # then there is no other choice that to bail out
-        raise ValueError, "Unknown residue: %s\n"%resn
-        
- 
-    o, r = mapping[resn].do(residue,target,bb,nterm,cterm,options["-nt"])
-    out.extend(o)
-    raw.extend(r)
+    # Copy the residue list from the target topology
+    # This gives a list we can pop from, while keeping
+    # the original.
+    # The solvent residues are skipped.
+    topresidues = None
+    if top:
+        topresidues = [i for i in top.residues]
+        if options["-atomlist"]:
+            atm    = open(options["-atomlist"].value,"w")
+            topatm = [j for i in topresidues for j in i]
+            atm.writelines("".join(["%6d %5s %5s\n"%(u,v[0],v[1]) for u,v in zip(range(1,len(topatm)+1),topatm)]))
 
 
-## Write out
-
-# Combine things
-
-out.extend(sol)
-out.extend(ions)
-raw.extend(sol)
-raw.extend(ions)
-
-# Write out
-
-if options["-o"]:
-    dev = open(options["-o"].value,"w")
-else:
-    dev = sys.stdout
-
-# Title
-if backmapping:
-    dev.write("Backmapped structure from MARTINI to %s\n"%options["-to"].value)
-else:
-    dev.write("Mapped structure from %s to MARTINI\n"%options["-from"].value)
-
-# Atom count
-dev.write("%5d\n"%len(out))
-
-u = options["-kick"].value
-
-# Atoms
-idx = 1
-for atom in out:
-    # Regular atom
-    nam,res,id,chn,x,y,z = atom
-    if False and res not in solvent_stuff:
-        x,y,z = kick(x,u),kick(y,u),kick(z,u)
-    dev.write("%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n"%(id%1e5,res,nam,idx%1e5,x,y,z))
-
-    idx += 1
-
-# Box
-dev.write(struc.groBoxString()+"\n")
-
-# Close if we were writing to file
-if options["-o"]:
-    dev.close()
+    # Iterate over residues
+    # If we are backmapping, we store the BB bead
+    # positions, to generate a spline, which we use
+    # afterwards to place the backbone atoms.
+    # To set the positions, we use some bookkeeping
+    # tricks for the atoms to place on, or relative
+    # to, the spline.
+    # The backbone list will end up being equal in 
+    # length to the number of (amino acid) residues.
+    # It is processed afterwards to be three times
+    # the length. Indices are used to indicate which
+    # entry from the resulting interpolated spline 
+    # list need to be taken for the position, and an
+    # offset (tuple) is added to control the placement
+    # of hydrogens and oxygens to N/C.
+    counter  =  0
+    out      = []
+    cg       = []
+    raw      = []
+    sol      = []
+    ions     = []
+    msgs     = []
+    for residue,bb,nterm,cterm in zip(struc.residues,struc.backbone,struc.nterm,struc.cterm):
 
 
-# Write the "raw" structure obtained by projection
-if options["-raw"]: 
-    dev = open(options["-raw"].value,"w")
-    dev.write("Projected structure before modifications\n")
-    dev.write("%5d\n"%len(raw))
-    idx = 1
-    for nam,res,id,chn,x,y,z in raw:
-        dev.write("%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n"%(id%1e5,res,nam,idx%1e5,x,y,z))
-    idx += 1
-    dev.write(struc.groBoxString()+"\n")
+        counter += 1
 
 
-## Write the output topology
-if options["-p"] and options["-po"]:
+        # Ignore solvent molecules from the topology
+        while topresidues and topresidues[0][0][1] in solvent_stuff:
+            topresidues.pop(0)
 
-    po  = open(options["-po"].value,"w")
-    mol = False
 
-    # Write everything up to the [ molecules ] directive
-    # After that, write only lines which are not solvent or ions
-    for i in open(options["-p"].value):
-        s = i.strip()
-        if "molecules" in i:
-            # Make sure we are not dealing with a comment
-            if s.startswith('[') and s[1:].strip().startswith("molecules"):
-                mol = True
-        # Skip empty lines and comments
-        
-        # Now skip the lines listing solvent and ion molecules
-        if mol:
-            if not s:
-                continue
-            if s[0] != ";" and i.split()[0] in solvent_stuff:
-                continue
-        
-        po.write(i)
-    
-    # Add lines for solvent and ions
-    sol  = [(i[1],i[2]) for i in sol]
-    sol  = [a[0] for a,b in itertools.groupby(sol)]
-    po.writelines(["%s %5d\n"%(a,len(list(b))) for a,b in itertools.groupby(sol)])
+        # Unpack first atom
+        first, resn, resi, chain, x, y, z = residue[0]
 
-    ions = [(i[0],i[2]) for i in ions]
-    ions = [a[0] for a,b in itertools.groupby(ions)]
-    po.writelines(["%s %5d\n"%(a.replace("+","").replace("-",""),len(list(b))) 
-                   for a,b in itertools.groupby(ions)])
-   
 
-## Write an index file
-if options["-n"]:
-    # Index groups
-    ndx_protein  = []
-    ndx_membrane = []
-    ndx_solvent  = []
+        # Extract residue name and atom list
+        resn  = resn.strip()
+        atoms = [i[0].strip() for i in residue]
 
-    for i,j in zip(range(1,1+len(out)),out):
-        if j[1] in protein_stuff:
-            ndx_protein.append(i)
-        elif j[1] in solvent_stuff:
-            ndx_solvent.append(i)
+
+        # Just read one residue from the CG structure
+        # If we have a topology, we need to check whether
+        # the residue we just read matches the next in the 
+        # topology. Several cases are possible:
+        #
+        #   - The residuename is equal in both cases:
+        #     This is too easy! Just proceed and thank your deity.
+        #
+        #   - The residues do not match, but the CG residuename 
+        #     matches the AA moleculetype name:
+        #     This may happen with lipids, if the atomistic structure
+        #     is split in residues like in the De Vries model.
+        #     In this case, all residues corresponding to the molecule
+        #     need to be read from the topology, based on the chain 
+        #     identifier.
+        #
+        #   - The residuename does not match, but the residue does:
+        #     The residues should match, or at least the first 
+        #     characters.      
+        #
+        #   - The residue does not match with either the residue or 
+        #     moleculetype from the atomistic topology:
+        #     If the residue is solvent, then we leave the topology
+        #     untouched, and the atoms are generated based on the 
+        #     mapping.
+
+
+        # Check for solvent
+        if resn in solvent.keys():
+            cx, cy, cz = residue[0][4:7]
+            for atom, x, y, z in solvent[resn]:
+                # Should add random rotation
+                if atom in ion_stuff:
+                    atom = atoms[0]
+                    ions.append((atom,resn,counter,chain,cx+x,cy+y,cz+z)) 
+                    # They are added at the end, which is safe, as the
+                    # ion position is taken from the CG bead position
+                    # anyway.
+                else:
+                    # If we do not want solvent written then this is 
+                    # a good time to break: the first atom of a stretch
+                    # of solvent. Note that this ensures that we write 
+                    # ions if we have those.
+                    if not options["-sol"]:
+                        break
+                    resn = options["-solname"].value
+                    # Increase the counter if we have an oxygen.
+                    # A little hack to keep track of water molecules
+                    if atom[0] == "O":
+                        counter += 1
+                    sol.append((atom,resn,counter,chain,cx+x,cy+y,cz+z)) 
+            # Go to next residue
+            continue
+
+
+        # Read a residue from the target topology if we have one
+        # Read several if the mapping so requires
+        # Make an atom list from the residues read
+        if topresidues:
+            # Check whether the CG residue corresponds to the next AA residue
+            # or to the next moleculetype 
+            topres = topresidues.pop(0)
+            if resn != topres[0][1] and resn == topres[0][7]:
+                # Add residues based on chain id
+                while topresidues and topresidues[0][0][3] == topres[0][3]:
+                    topres.extend(topresidues.pop(0))
+            topres = [i for j in range(mapnum.get(resn,1)) for i in topres]
+            # Set the residue name to the moleculetype name
+            topres[0][3] = topres[0][7]
+            target = list(zip(*topres))[0]
+            # Check for duplicate atom names
+            if not len(target) == len(set(target)):
+                print("The target list for residue %s contains duplicate names. Relying on mapping file."%resn)
+                target = None
         else:
-            ndx_membrane.append(i)
+            target = None
 
-    ndx = open(options["-n"].value,"w")
-    ndx.write("[ Protein ]\n"+"\n".join([str(i) for i in ndx_protein])+"\n")
-    ndx.write("[ Membrane ]\n"+"\n".join([str(i) for i in ndx_membrane])+"\n")
-    ndx.write("[ Solvent ]\n"+"\n".join([str(i) for i in ndx_solvent])+"\n")
+
+        # Except for solvent, the residue name from a topology 
+        # takes precedence over the one from the structure.
+        if top and topres[0][1] in mapping.keys():
+            resn = topres[0][1]
+
+        
+        # Check if the residue is in the list
+        # or whether we have an ambiguity.
+        # In that case the first part of the 
+        # residue proper is equal to what we have
+        # and the atom lists should be equal
+        if not resn in reslist:
+            oldname = resn
+            p = set(atoms)
+            for i in reslist:
+                if i.startswith(resn):
+                    if p == set([k for j in mapping[i].map.values() for k in j]):
+                        msg="Residue %s not found. Seems to match %s."%(resn,i)
+                        if not msg in msgs:
+                            print(msg)
+                            msgs.append(msg)
+                        resn = i
+                        break
+            if resn == oldname:
+                # Last resort ... Checking for partially matching atom lists
+                for i in reslist:
+                    if i.startswith(resn):
+                        keys = mapping[i].map.values()+[mapping[i].prekeys]
+                        if p.issubset(set([k for j in keys for k in j])):
+                            msg="Residue %s not found. Seems to match %s."%(resn,i)
+                            if not msg in msgs:
+                                print(msg)
+                                msgs.append(msg)
+                            resn = i
+                            break
+            
+
+        if not resn in mapping.keys():
+            # If the residue is still not in the mapping list
+            # then there is no other choice that to bail out
+            raise ValueError("Residue not found in mapping dictionary: %s\n"%resn)
+            
+    
+        o, r = mapping[resn].do(residue,target,bb,nterm,cterm,options["-nt"])
+        out.extend(o)
+        raw.extend(r)
+
+
+    ## Write out
+
+    # Combine things
+
+    out.extend(sol)
+    out.extend(ions)
+    raw.extend(sol)
+    raw.extend(ions)
+
+    # Write out
+
+    # Title
+    if backmapping:
+        title = "Backmapped structure from MARTINI to %s\n"%options["-to"].value
+    else:
+        title = "Mapped structure from %s to MARTINI\n"%options["-from"].value
+
+    write_gro(options["-o"].value, title, out, struc.groBoxString(), options["-kick"].value)
+    if options["-raw"]:
+        write_gro(options["-raw"].value, "Projected structure before modifications\n",
+                raw, struc.groBoxString(), 0)
+
+    ## Write the output topology
+    if options["-p"] and options["-po"]:
+        write_topology(options["-po"].value, options["-p"].value, sol, ions)
+    
+
+    ## Write an index file
+    if options["-n"]:
+        write_ndx(options["-n"].value, out, protein_stuff, solvent_stuff)
+
+# --------------------------------------------------------------------------------------
+#
+# MAIN
+#
+# --------------------------------------------------------------------------------------
+if __name__ == '__main__':
+    # Parsing arguments
+    args = sys.argv[1:]
+    workflow(args)
